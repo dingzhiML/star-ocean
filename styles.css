@@ -470,7 +470,7 @@ html.theme-anim .p-btn, html.theme-anim .p-main {
 
 .toast {
   position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%);
-  z-index: 60; padding: 10px 22px; border-radius: 999px; font-size: 13px;
+  z-index: 45; padding: 10px 22px; border-radius: 999px; font-size: 13px;
   color: var(--cream);
   animation: toastIn .3s ease;
 }
@@ -520,4 +520,123 @@ html.theme-anim .p-btn, html.theme-anim .p-main {
   .player { padding: 8px 10px; }
   .p-info { min-width: 80px; }
   .tl-labels .tl-mid { display: none; }
+}
+
+/* ============================================================
+   布局重构（2026-11）：顶栏 / 底部停靠栏
+   目标：任何窗口宽度下，标题、搜索、分组、图例、播放器、时间线
+   都各自占据明确区域，绝不互相重叠。
+   ============================================================ */
+.search-cancel {
+  display: none;
+  border: none; background: none; color: var(--accent);
+  font-size: 14px; font-family: inherit; padding: 2px 2px 2px 10px;
+  cursor: pointer; flex-shrink: 0;
+}
+
+.hud-top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 25;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: start;
+  padding: 18px 22px 0;
+  pointer-events: none;
+}
+.hud-top > * { pointer-events: auto; }
+.hud-top .brand { position: static; max-width: none; }
+.hud-top .search-wrap {
+  position: static;
+  justify-self: center;
+  width: 430px; max-width: 100%;
+  transform: none;
+  margin-top: 2px;
+}
+.hud-top .top-actions {
+  position: static;
+  justify-self: end;
+  margin-top: 2px;
+  align-items: center;
+}
+
+.hud-bottom {
+  position: fixed; left: 0; right: 0; bottom: 22px; z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  column-gap: 16px;
+  align-items: end;
+  padding: 0 22px;
+  pointer-events: none;
+}
+.hud-bottom .player {
+  grid-column: 1; grid-row: 1;
+  position: static; justify-self: start; pointer-events: auto;
+}
+.hud-bottom .timeline {
+  grid-column: 2; grid-row: 1;
+  position: static;
+  width: 680px; max-width: 100%;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* 中等宽度：顶栏拆成两行（标题+按钮 / 搜索），避免搜索与分类按钮打架 */
+@media (max-width: 1339px) {
+  .hud-top {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 12px;
+  }
+  .hud-top .brand { grid-column: 1; grid-row: 1; }
+  .hud-top .top-actions { grid-column: 2; grid-row: 1; }
+  .hud-top .search-wrap {
+    grid-column: 1 / -1; grid-row: 2;
+    justify-self: center;
+    width: min(520px, calc(100vw - 460px));
+    margin-top: 0;
+  }
+}
+
+/* 中等宽度：播放器与时间线并排，时间线占满剩余宽度，绝不重叠 */
+@media (max-width: 1319px) {
+  .hud-bottom { grid-template-columns: auto minmax(0, 1fr); }
+  .hud-bottom .timeline { width: 100%; max-width: 680px; justify-self: center; }
+}
+
+/* 小窗口（鼠标）：收紧顶栏按钮与底栏边距 */
+@media (max-width: 900px) {
+  .hud-top { padding: 16px 16px 0; column-gap: 12px; }
+  .hud-top .top-actions { gap: 8px; }
+  .hud-top .top-actions .icon-btn { width: 36px; height: 36px; }
+  .hud-top .top-actions .icon-btn svg { width: 17px; height: 17px; }
+  .seg button { padding: 5px 10px; font-size: 12px; }
+  .hud-bottom { padding: 0 16px; }
+}
+
+/* 窄桌面窗口：详情卡避开顶栏与底栏，改为右侧竖向滚动区 */
+@media (max-width: 1199px) {
+  .card {
+    top: 140px;
+    bottom: 110px;
+    right: 16px;
+    transform: none;
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: none;
+  }
+}
+
+/* 矮窗口桌面：详情卡同样避开顶栏与底栏 */
+@media (min-width: 1200px) and (max-height: 700px) {
+  .card {
+    top: 140px;
+    bottom: 110px;
+    transform: none;
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    animation: none;
+  }
 }

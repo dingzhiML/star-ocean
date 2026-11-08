@@ -10,6 +10,10 @@ const $$ = (s) => Array.from(document.querySelectorAll(s));
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hashStr = (s) => { let a = 0; for (const c of String(s)) a = ((a << 5) - a + c.charCodeAt(0)) | 0; return Math.abs(a); };
 
+/* ---------------- 手机端适配（断点与 styles-mobile.css 保持一致） ---------------- */
+const MOBILE_MQ = window.matchMedia("(pointer: coarse) and (max-width: 820px), (pointer: coarse) and (orientation: landscape) and (max-height: 520px)");
+const isMobileView = () => MOBILE_MQ.matches;
+
 window.addEventListener("error", (e) => showFatal(e.message));
 window.addEventListener("unhandledrejection", (e) => showFatal(String((e.reason && e.reason.message) || e.reason)));
 function showFatal(msg) {
@@ -22,6 +26,8 @@ function showFatal(msg) {
 let toastTimer = null;
 function toast(msg, ms = 2600) {
   const t = $("#toast");
+  const h = $("#hint");
+  if (h) h.classList.add("hidden"); // 出现轻提示时收起新手提示，二者不叠在一起
   t.textContent = msg;
   t.classList.remove("hidden");
   clearTimeout(toastTimer);
@@ -53,13 +59,9 @@ function resolveTheme() {
 }
 
 function syncThemeButton() {
-  const btn = $("#btnTheme");
-  if (!btn) return;
-  btn.dataset.show = THEME.mode === "auto" ? "auto" : THEME.resolved;
-  const nowTag = THEME.resolved === "day" ? "白天" : "夜晚";
-  btn.title = THEME.mode === "auto"
-    ? `外观：跟随时间（当前${nowTag}，白天 6:00–18:30）`
-    : `外观：固定${THEME.resolved === "day" ? "白天" : "夜晚"}（点击切换）`;
+  $$("#themeSeg button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.themeMode === THEME.mode);
+  });
 }
 
 function tweenGraphBackground(targetHex, ms = 1000) {
@@ -110,9 +112,8 @@ function applyTheme(resolved, force = false) {
   }
 }
 
-function switchTheme() {
-  const ORDER = ["auto", "day", "night"];
-  THEME.mode = ORDER[(ORDER.indexOf(THEME.mode) + 1) % ORDER.length];
+function switchTheme(mode) {
+  THEME.mode = mode;
   try { localStorage.setItem("star-ocean-theme", THEME.mode); } catch (e) {}
   const r = resolveTheme();
   applyTheme(r);
@@ -122,7 +123,9 @@ function switchTheme() {
 }
 
 function initThemeUI() {
-  $("#btnTheme").addEventListener("click", switchTheme);
+  $$("#themeSeg button").forEach((b) => {
+    b.addEventListener("click", () => switchTheme(b.dataset.themeMode));
+  });
   syncThemeButton();
   // 自动模式：每分钟检查一次是否跨过日出/日落
   setInterval(() => {
@@ -192,37 +195,102 @@ const TRACKS = [
 ];
 const audio = new Audio();
 audio.volume = 0.55;
+audio.preload = "metadata";
 let trackIdx = 0;
+let musicWanted = true;
+let pendingAutoplay = false;
+
+function musicPref() {
+  try { return localStorage.getItem("star-ocean-autoplay") !== "off"; } catch (e) { return true; }
+}
+function setMusicPref(on) {
+  try { localStorage.setItem("star-ocean-autoplay", on ? "on" : "off"); } catch (e) {}
+}
 
 function initMusic() {
   const btnPlay = $("#mPlay");
+  const topBtn = $("#btnMusicToggle");
+  const autoplayToggle = $("#autoplayToggle");
+  const list = $("#trackList");
+
   const setPlayingUI = (playing) => {
     btnPlay.textContent = playing ? "⏸" : "▶";
-    $("#eq").classList.toggle("on", playing);
     btnPlay.title = playing ? "暂停" : "播放";
+    $("#eq").classList.toggle("on", playing);
+    if (topBtn) {
+      topBtn.classList.toggle("playing", playing);
+      topBtn.title = playing ? "暂停音乐" : "播放音乐";
+    }
+    const now = $("#musicNow");
+    if (now) {
+      const cur = audio.src ? "《" + TRACKS[trackIdx].name + "》" : "未播放";
+      now.textContent = cur + (playing ? " · 播放中" : "");
+    }
   };
+
+  const renderTrackList = () => {
+    if (!list) return;
+    list.innerHTML = "";
+    TRACKS.forEach((t, i) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "track-item" + (i === trackIdx ? " active" : "");
+      b.innerHTML = `<span class="ti-name">${esc(t.name)}</span><span class="ti-orig">${esc(t.orig)}</span>`;
+      b.addEventListener("click", () => playIdx(i));
+      list.appendChild(b);
+    });
+  };
+
   const playIdx = (i) => {
     trackIdx = (i + TRACKS.length) % TRACKS.length;
     const t = TRACKS[trackIdx];
     audio.src = t.file;
     audio.title = t.orig;
     $("#mTitle").textContent = "《" + t.name + "》";
-    audio.play().then(() => setPlayingUI(true)).catch(() => {
-      setPlayingUI(false);
-      toast("浏览器阻止了自动播放，点一下播放键就好 🎵");
-    });
+    renderTrackList();
+    audio.play().then(() => { pendingAutoplay = false; }).catch(() => { pendingAutoplay = true; });
   };
-  btnPlay.addEventListener("click", () => {
+
+  const toggle = () => {
     if (!audio.src) return playIdx(trackIdx);
-    if (audio.paused) { audio.play().then(() => setPlayingUI(true)).catch(() => {}); }
-    else { audio.pause(); setPlayingUI(false); }
-  });
+    if (audio.paused) audio.play().catch(() => toast("再点一下就能播放 🎵"));
+    else audio.pause();
+  };
+
+  btnPlay.addEventListener("click", toggle);
+  if (topBtn) topBtn.addEventListener("click", toggle);
   $("#mNext").addEventListener("click", () => playIdx(trackIdx + 1));
   $("#mPrev").addEventListener("click", () => playIdx(trackIdx - 1));
   audio.addEventListener("ended", () => playIdx(trackIdx + 1));
   audio.addEventListener("play", () => setPlayingUI(true));
   audio.addEventListener("pause", () => setPlayingUI(false));
   $("#mVol").addEventListener("input", (e) => { audio.volume = e.target.value / 100; });
+
+  musicWanted = musicPref();
+  autoplayToggle.checked = musicWanted;
+  autoplayToggle.addEventListener("change", () => {
+    musicWanted = autoplayToggle.checked;
+    setMusicPref(musicWanted);
+    if (musicWanted && audio.paused) toggle();
+  });
+
+  renderTrackList();
+  setPlayingUI(false);
+
+  // 浏览器限制自动播放：第一次触摸/按键后再播放（避开音乐控件本身）
+  const unlock = (e) => {
+    if (e.target && e.target.closest && e.target.closest("#btnMusicToggle, #mPlay, #autoplayToggle")) return;
+    document.removeEventListener("pointerdown", unlock, true);
+    document.removeEventListener("keydown", unlock, true);
+    if (musicWanted && audio.paused) playIdx(trackIdx);
+  };
+  document.addEventListener("pointerdown", unlock, true);
+  document.addEventListener("keydown", unlock, true);
+
+  // 打开页面就尝试播放；若被浏览器拦截，等第一次交互
+  setTimeout(() => {
+    if (musicWanted && audio.paused) playIdx(trackIdx);
+  }, 700);
 }
 
 /* ---------------- 图像处理 ---------------- */
@@ -309,6 +377,91 @@ let graph = null;
 let dust = null;
 const clusterLayer = new THREE.Group();
 
+/* 取景：手机端留白更小、并抬起视角，让星海在竖屏里更饱满 */
+function fitView(ms = 800) {
+  if (!graph) return;
+  graph.zoomToFit(ms, isMobileView() ? 22 : 70);
+  clearTimeout(fitView._t);
+  if (isMobileView()) fitView._t = setTimeout(tiltCameraForMobile, ms + 140);
+}
+
+function graphCenterVec() {
+  const nodes = (graph && graph.graphData().nodes) || [];
+  const c = new THREE.Vector3();
+  if (!nodes.length) return c;
+  for (const n of nodes) { c.x += n.x; c.y += n.y; c.z += n.z; }
+  return c.multiplyScalar(1 / nodes.length);
+}
+
+function tiltCameraForMobile() {
+  if (!graph || !isMobileView()) return;
+  const cam = graph.camera();
+  if (!cam) return;
+  const center = graphCenterVec();
+  const sph = new THREE.Spherical().setFromVector3(cam.position.clone().sub(center));
+  if (!isFinite(sph.radius) || sph.radius <= 0) return;
+  if (Math.abs(sph.phi - 1.02) < 0.12) return;
+  sph.phi = 1.02; /* 约 32° 俯角：横排的星系环变成更有层次的椭圆 */
+  const pos = new THREE.Vector3().setFromSpherical(sph).add(center);
+  graph.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: center.x, y: center.y, z: center.z }, 800);
+}
+
+function updateHintCopy() {
+  const h = $("#hint");
+  if (!h) return;
+  h.textContent = isMobileView()
+    ? "点右上角菜单 · 单指拖动旋转 · 双指缩放 · 轻触照片看故事"
+    : "点右上角菜单探索 · 拖拽旋转 · 滚轮缩放 · 点击照片看故事";
+}
+
+/* ---------------- 全屏搜索（手机 / 电脑共用） ---------------- */
+function setSearchMode(on) {
+  const page = $("#searchPage");
+  const input = $("#searchInput");
+  if (!page) return;
+  page.classList.toggle("hidden", !on);
+  page.setAttribute("aria-hidden", on ? "false" : "true");
+  document.body.classList.toggle("search-open", on);
+  if (on) {
+    closeDrawer();
+    setTimeout(() => {
+      try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); }
+    }, 60);
+  } else if (input) {
+    input.blur();
+  }
+}
+
+/* ---------------- 菜单抽屉 ---------------- */
+function openDrawer() {
+  const d = $("#drawer"), s = $("#drawerScrim");
+  if (!d) return;
+  d.classList.add("open");
+  d.setAttribute("aria-hidden", "false");
+  if (s) s.classList.add("show");
+  document.body.classList.add("drawer-open");
+}
+function closeDrawer() {
+  const d = $("#drawer"), s = $("#drawerScrim");
+  if (!d) return;
+  d.classList.remove("open");
+  d.setAttribute("aria-hidden", "true");
+  if (s) s.classList.remove("show");
+  document.body.classList.remove("drawer-open");
+}
+function initDrawer() {
+  $("#btnMenu").addEventListener("click", openDrawer);
+  $("#drawerClose").addEventListener("click", closeDrawer);
+  $("#drawerScrim").addEventListener("click", closeDrawer);
+}
+
+/* 底栏实际高度写入 CSS 变量：提示/toast 永远贴在底栏上方，不会压住控件 */
+function syncDockHeight() {
+  const dock = document.querySelector(".hud-bottom");
+  if (!dock) return;
+  document.documentElement.style.setProperty("--dock-h", Math.round(dock.getBoundingClientRect().height) + "px");
+}
+
 function initGraph() {
   const isDay = THEME.resolved === "day";
   graph = new ForceGraph3D($("#scene"), { controlType: "orbit" })
@@ -320,7 +473,7 @@ function initGraph() {
     .linkOpacity(0.16)
     .linkWidth(0)
     .linkDirectionalParticles((l) => (l.__cross ? 1 : 2))
-    .linkDirectionalParticleSpeed(0.011)
+    .linkDirectionalParticleSpeed(0.004)
     .linkDirectionalParticleWidth(1.5)
     .linkDirectionalParticleColor(() => isDay ? "#a8865a" : "#fff4e4")
     .nodeLabel((n) => {
@@ -341,7 +494,7 @@ function initGraph() {
   if ("enableDamping" in controls) controls.enableDamping = true;
 
   graph.onEngineStop(() => {
-    if (state.firstFit) { state.firstFit = false; graph.zoomToFit(900, 70); }
+    if (state.firstFit) { state.firstFit = false; fitView(900); }
   });
 
   // 背景星尘
@@ -367,7 +520,30 @@ function initGraph() {
   graph.scene().add(dust);
   graph.scene().add(clusterLayer);
 
-  window.addEventListener("resize", () => graph.width(window.innerWidth).height(window.innerHeight));
+  let wasMobileView = isMobileView();
+  let resizeFitTimer = null;
+  window.addEventListener("resize", () => {
+    graph.width(window.innerWidth).height(window.innerHeight);
+    const nowMobile = isMobileView();
+    if (nowMobile !== wasMobileView) {
+      wasMobileView = nowMobile;
+      // 横竖屏切换：节点尺寸与取景需要重建，否则尺寸按旧断点渲染
+      disposeNodeObjects(graph.graphData().nodes);
+      graph.nodeThreeObject((n) => makeNodeObject(n));
+      if (state.lastGd) buildClusterLayer(state.lastGd.keys, state.lastGd.centers);
+      updateHintCopy();
+      setTimeout(() => fitView(700), 120);
+    }
+    // 手机端屏幕尺寸/方向变化后重新取景，避免星海缩在一角或跑出画面
+    if (isMobileView()) {
+      clearTimeout(resizeFitTimer);
+      resizeFitTimer = setTimeout(() => fitView(650), 260);
+    } else {
+      // 从手机宽度拉回桌面宽度时，退出全屏搜索
+      setSearchMode(false, true);
+    }
+    syncDockHeight();
+  });
 
   // 呼吸 / 悬停动画
   const tick = (t) => {
@@ -395,7 +571,7 @@ function makeNodeObject(node) {
   const color = colorForKey(node.cluster);
   const isDay = THEME.resolved === "day";
   const tex = state.texCache.get(p.src) || haloTexture("#ffc477");
-  const size = 8.5 + (hashStr(p.id) % 30) / 10 + (p._user ? 2.5 : 0);
+  const size = (8.5 + (hashStr(p.id) % 30) / 10 + (p._user ? 2.5 : 0)) * (isMobileView() ? 1.32 : 1);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({
     map: haloTexture(color), transparent: true, opacity: isDay ? 0.32 : 0.5,
     blending: isDay ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false,
@@ -534,7 +710,7 @@ function rebuild(keepCamera = true) {
   initStateRange();
   applyTimeFilter();
   graph.d3ReheatSimulation();
-  setTimeout(() => graph.zoomToFit(800, 70), keepCamera ? 500 : 120);
+  setTimeout(() => fitView(800), keepCamera ? 500 : 120);
 }
 
 /* ---------------- 图例 ---------------- */
@@ -548,18 +724,18 @@ function renderLegend(gd) {
     const el = document.createElement("div");
     el.className = "lg-item";
     el.innerHTML = `<i class="lg-dot" style="background:${colorForKey(k)};color:${colorForKey(k)}"></i><span class="lg-name">${esc(k)}</span><span class="lg-count">${counts[k]}</span>`;
-    el.addEventListener("click", () => flyToCenter(gd.centers[k]));
+    el.addEventListener("click", () => { closeDrawer(); flyToCenter(gd.centers[k]); });
     list.appendChild(el);
   }
 }
 
 function flyToCenter(c) {
-  const d = 235;
+  const d = isMobileView() ? 185 : 235;
   graph.cameraPosition({ x: c.x + d * 0.62, y: c.y + d * 0.38, z: c.z + d * 0.68 }, { x: c.x, y: c.y, z: c.z }, 1100);
 }
 
 function flyToNode(node) {
-  const d = 130;
+  const d = isMobileView() ? 92 : 130;
   graph.cameraPosition(
     { x: node.x + d * 0.55, y: node.y + d * 0.35, z: node.z + d * 0.75 },
     { x: node.x, y: node.y, z: node.z }, 900
@@ -664,11 +840,18 @@ function initSearch() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => renderResults(input.value.trim()), 150);
   });
+  $("#btnSearchOpen").addEventListener("click", () => setSearchMode(true));
+  $("#searchCancel").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    input.value = "";
+    results.innerHTML = "";
+    results.classList.add("hidden");
+    $("#searchClear").classList.add("hidden");
+    setSearchMode(false);
+  });
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") { const first = results.querySelector(".sr-item"); if (first) first.dispatchEvent(new Event("mousedown")); } });
   $("#searchClear").addEventListener("click", () => { input.value = ""; results.classList.add("hidden"); $("#searchClear").classList.add("hidden"); input.focus(); });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest(".search-wrap")) results.classList.add("hidden");
-  });
 }
 
 function renderResults(q) {
@@ -693,6 +876,7 @@ function renderResults(q) {
       ev.preventDefault();
       locatePhoto(p);
       results.classList.add("hidden");
+      setSearchMode(false);
     });
     results.appendChild(el);
   }
@@ -712,6 +896,8 @@ function locatePhoto(p) {
 
 /* ---------------- 照片详情卡 ---------------- */
 function openCard(p) {
+  if (isMobileView()) setSearchMode(false); // 手机上详情是全屏页，先收起搜索页
+  closeDrawer();
   const node = state.nodeById.get(p.id);
   state.selected = node || null;
   $("#cardImg").src = p.src;
@@ -735,7 +921,7 @@ function initAddPanel() {
   const drop = $("#dropZone");
   const fileInput = $("#fileInput");
 
-  $("#btnAdd").addEventListener("click", () => { modal.classList.remove("hidden"); renderMyPhotos(); });
+  $("#btnAdd").addEventListener("click", () => { closeDrawer(); modal.classList.remove("hidden"); renderMyPhotos(); });
   drop.addEventListener("click", () => fileInput.click());
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("dragover"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("dragover"));
@@ -764,8 +950,10 @@ function initAddPanel() {
   $$(".modal").forEach((m) => m.addEventListener("click", (e) => { if (e.target === m) m.classList.add("hidden"); }));
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      closeDrawer();
       $$(".modal").forEach((m) => m.classList.add("hidden"));
       closeCard();
+      setSearchMode(false);
       $("#searchResults").classList.add("hidden");
     }
   });
@@ -884,17 +1072,28 @@ function initOtherUI() {
     rebuild();
   }));
   // 自动旋转
-  $("#btnRotate").addEventListener("click", () => {
-    const btn = $("#btnRotate");
-    const on = !btn.classList.contains("active");
-    btn.classList.toggle("active", on);
-    graph.controls().autoRotate = on;
-  });
-  // 关于
-  $("#btnAbout").addEventListener("click", () => $("#aboutModal").classList.remove("hidden"));
+  const rotateBtn = $("#btnRotate");
+  if (rotateBtn) {
+    rotateBtn.textContent = "自动旋转：开";
+    rotateBtn.addEventListener("click", () => {
+      const on = !graph.controls().autoRotate;
+      graph.controls().autoRotate = on;
+      rotateBtn.classList.toggle("active", on);
+      rotateBtn.textContent = "自动旋转：" + (on ? "开" : "关");
+    });
+  }
+  // 重新取景
+  const fitBtn = $("#btnFit");
+  if (fitBtn) fitBtn.addEventListener("click", () => { closeDrawer(); fitView(800); });
   // 卡片
   $("#cardClose").addEventListener("click", closeCard);
-  $("#cardFly").addEventListener("click", () => { if (state.selected) flyToNode(state.selected); });
+  $("#cardFly").addEventListener("click", () => {
+    const node = state.selected;
+    if (!node) return;
+    // 手机详情是全屏页：先回到星海，再飞向该星球
+    if (isMobileView()) closeCard();
+    flyToNode(node);
+  });
   $("#cardDelete").addEventListener("click", async () => {
     const node = state.selected;
     if (!node) return;
@@ -910,6 +1109,7 @@ function initOtherUI() {
 
 function startHint() {
   const h = $("#hint");
+  updateHintCopy();
   h.classList.remove("hidden");
   setTimeout(() => h.classList.add("hidden"), 9000);
 }
@@ -936,8 +1136,16 @@ async function preloadTextures(photos, onEach) {
 
 async function init() {
   initMusic();
+  initDrawer();
   initAddPanel();
   initOtherUI();
+
+  // 底栏高度实时写入 --dock-h：提示/toast 永远贴在底栏上方
+  syncDockHeight();
+  if (typeof ResizeObserver !== "undefined") {
+    const dock = document.querySelector(".hud-bottom");
+    if (dock) new ResizeObserver(() => syncDockHeight()).observe(dock);
+  }
 
   setProgress(6, "正在打开记忆宝盒…");
   let userPhotos = [];

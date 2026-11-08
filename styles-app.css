@@ -1,0 +1,307 @@
+/* ============================================================
+   星海 · 新版界面骨架（手机 / 电脑同一套信息架构）
+   主页只保留：标题、音乐、搜索、菜单、时间线。
+   其余全部收进右侧抽屉；搜索是全屏页。
+   ============================================================ */
+
+:root {
+  --drawer-w: 380px;
+  --drawer-bg: linear-gradient(170deg, rgba(40, 35, 30, 0.98), rgba(24, 21, 18, 0.98));
+  --drawer-sec-bg: rgba(255, 250, 240, 0.05);
+  --drawer-sec-border: rgba(255, 250, 240, 0.1);
+}
+[data-theme="day"] {
+  --drawer-bg: linear-gradient(170deg, rgba(255, 253, 248, 0.98), rgba(248, 242, 230, 0.98));
+  --drawer-sec-bg: rgba(255, 255, 255, 0.5);
+  --drawer-sec-border: rgba(150, 118, 76, 0.16);
+}
+
+/* ---------- 顶栏：标题 + 音乐 / 搜索 / 菜单 ---------- */
+.hud-top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 25;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px 0;
+  pointer-events: none;
+}
+.hud-top > * { pointer-events: auto; }
+.brand { position: static; }
+.hud-top .top-actions {
+  position: static; margin: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+
+/* 顶部音乐按钮：播放/暂停图标切换 */
+.music-btn .mt-pause { display: none; }
+.music-btn.playing .mt-play { display: none; }
+.music-btn.playing .mt-pause { display: block; }
+.music-btn.playing {
+  border-color: rgba(255, 250, 240, 0.42);
+  box-shadow: inset 0 1px 0.5px rgba(255, 252, 245, 0.4),
+              0 0 20px rgba(255, 246, 228, 0.22),
+              var(--glass-drop);
+}
+
+/* ---------- 底栏：只保留时间线 ---------- */
+.hud-bottom {
+  position: fixed; left: 0; right: 0; bottom: 22px; z-index: 10;
+  display: flex; justify-content: center; align-items: flex-end;
+  padding: 0 22px;
+  pointer-events: none;
+}
+.hud-bottom .timeline {
+  position: static;
+  width: min(680px, 100%);
+  max-width: 680px;
+  transform: none;
+  pointer-events: auto;
+}
+
+/* 提示 / Toast 固定在时间线上方（桌面） */
+.hint { bottom: 120px; }
+.toast { bottom: 120px; }
+
+/* ---------- 全屏搜索页 ---------- */
+.search-page {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: clamp(24px, 9vh, 96px) 20px 20px;
+  background: var(--bg);
+}
+.search-page.hidden { display: none; }
+.search-panel {
+  width: min(720px, 100%);
+  max-height: 100%;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.search-page .search-box { padding: 11px 16px; }
+.search-page #searchInput { font-size: 16px; }
+.search-page .search-results {
+  margin-top: 0;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.search-page .search-cancel { display: block; }
+
+/* ---------- 抽屉菜单 ---------- */
+.drawer-scrim {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(6, 5, 4, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0; visibility: hidden;
+  transition: opacity .25s ease, visibility .25s;
+}
+.drawer-scrim.show { opacity: 1; visibility: visible; }
+
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 85;
+  width: min(var(--drawer-w), 94vw);
+  transform: translateX(102%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform .3s cubic-bezier(.34, 1.2, .5, 1), visibility .3s;
+}
+.drawer.open { transform: none; visibility: visible; pointer-events: auto; }
+
+.drawer-panel {
+  height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--drawer-bg);
+  border-left: 1px solid var(--drawer-sec-border);
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.38);
+  padding: calc(16px + env(safe-area-inset-top))
+           calc(16px + env(safe-area-inset-right))
+           calc(18px + env(safe-area-inset-bottom))
+           16px;
+}
+.drawer-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--drawer-sec-border);
+}
+.drawer-head h2 { font-size: 19px; letter-spacing: 2px; }
+.drawer-head p { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.drawer-head .mini-btn { width: 32px; height: 32px; flex-shrink: 0; }
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 12px 2px 6px 0;
+}
+.drawer-body > * { flex: 0 0 auto; }
+
+.drawer-sec {
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--drawer-sec-bg);
+  border: 1px solid var(--drawer-sec-border);
+}
+.drawer-h3 {
+  font-size: 11.5px; letter-spacing: 2px; color: var(--muted);
+  font-weight: 600; margin-bottom: 8px;
+}
+.drawer .seg { width: 100%; padding: 3px; }
+.drawer .seg button { flex: 1 1 0; padding: 7px 0; }
+
+.drawer .legend {
+  position: static; width: auto; max-width: none;
+  padding: 0; margin-top: 10px;
+  border: none; background: none; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.drawer .legend-list { max-height: 32vh; overflow-y: auto; }
+.drawer .panel-title { margin-bottom: 6px; }
+
+.drawer-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%;
+  border: 1px solid var(--drawer-sec-border);
+  background: var(--drawer-sec-bg);
+  color: var(--cream);
+  border-radius: 14px;
+  padding: 11px 12px;
+  font-size: 14px; font-family: inherit;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: all .2s cubic-bezier(.34, 1.4, .44, 1);
+}
+.drawer-btn:first-child { margin-top: 0; }
+.drawer-btn svg { width: 16px; height: 16px; }
+.drawer-btn:hover { background: rgba(255, 250, 240, 0.12); }
+.drawer-btn:active { transform: scale(.97); }
+.drawer-btn.primary {
+  background: var(--btn-primary-bg);
+  color: var(--ink);
+  font-weight: 700;
+  border-color: rgba(255, 250, 240, 0.4);
+}
+.drawer-btn.primary:hover { filter: brightness(1.03); }
+.drawer-btn.active { border-color: rgba(255, 248, 232, 0.45); }
+
+.drawer-note { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+
+.drawer-acc {
+  border: 1px solid var(--drawer-sec-border);
+  border-radius: 16px;
+  background: var(--drawer-sec-bg);
+  overflow: hidden;
+}
+.drawer-acc summary {
+  list-style: none; cursor: pointer;
+  padding: 13px 14px;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: 14px; color: var(--cream);
+  user-select: none;
+}
+.drawer-acc summary::-webkit-details-marker { display: none; }
+.drawer-acc summary::after {
+  content: "›";
+  color: var(--muted);
+  transform: rotate(90deg);
+  transition: transform .2s ease;
+  font-size: 16px;
+}
+.drawer-acc[open] summary::after { transform: rotate(-90deg); }
+.drawer-acc[open] summary { border-bottom: 1px solid var(--drawer-sec-border); }
+.acc-hint {
+  margin-left: auto;
+  font-size: 11px; color: var(--muted);
+  max-width: 52%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drawer-acc > *:not(summary) { margin: 10px 14px; }
+.drawer-acc > .player { margin: 10px 14px; }
+
+/* 抽屉内的播放器（去掉原来的固定定位与玻璃底板） */
+.drawer-acc .player {
+  position: static;
+  width: auto;
+  padding: 4px 0 2px;
+  display: block;
+  border: none;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.p-row { display: flex; align-items: center; gap: 8px; }
+.p-row .p-info { flex: 1; min-width: 0; }
+.p-row .p-name { max-width: none; }
+.drawer-acc .p-info { width: auto; min-width: 0; }
+
+.track-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; }
+.track-item {
+  display: flex; align-items: baseline; gap: 8px;
+  width: 100%;
+  border: 1px solid transparent;
+  background: rgba(255, 250, 240, 0.05);
+  color: var(--cream);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12.5px; font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s;
+}
+.track-item:hover { background: rgba(255, 250, 240, 0.12); }
+.track-item .ti-name { flex: 0 0 auto; }
+.track-item .ti-orig {
+  flex: 1; min-width: 0;
+  color: var(--muted); font-size: 10.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.track-item.active {
+  color: var(--ink);
+  background: var(--seg-active-bg);
+  border-color: rgba(255, 250, 240, 0.45);
+  font-weight: 700;
+}
+.track-item.active .ti-orig { color: rgba(51, 41, 26, 0.65); }
+
+.switch-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px;
+  font-size: 12.5px; color: var(--muted);
+  cursor: pointer;
+}
+.switch-row input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.drawer .about-body { font-size: 12.5px; line-height: 1.75; color: var(--note-text); }
+.drawer .about-body h4 { margin: 12px 0 4px; color: var(--accent); font-size: 12.5px; }
+.drawer .about-body p { margin-bottom: 6px; }
+.drawer .about-body a { color: var(--accent); text-decoration: none; }
+.drawer .credit-list { padding-left: 16px; font-size: 12px; }
+.drawer .credit-sub { font-size: 11.5px; color: var(--muted); }
+
+/* 主题三段选择 */
+.theme-seg { margin-top: 2px; }
+.theme-seg button { font-size: 12px; }
+
+/* ---------- 桌面小窗口 ---------- */
+@media (max-width: 900px) {
+  .hud-top { padding: 16px 16px 0; gap: 12px; }
+  .hud-top .top-actions { gap: 8px; }
+  .hud-top .icon-btn { width: 36px; height: 36px; }
+  .hud-top .icon-btn svg { width: 17px; height: 17px; }
+  .hud-bottom { padding: 0 16px; bottom: 16px; }
+  .hud-bottom .timeline { width: 100%; max-width: 680px; }
+  .hint, .toast { bottom: 108px; }
+}
+
+
+/* 白天主题：香槟底上的按钮文字用深色，保证对比度 */
+[data-theme="day"] .seg button.active,
+[data-theme="day"] .theme-seg button.active,
+[data-theme="day"] .track-item.active,
+[data-theme="day"] .drawer-btn.primary,
+[data-theme="day"] .btn.primary,
+[data-theme="day"] .sweep-btn,
+[data-theme="day"] .p-main {
+  color: #3b2c18;
+}
