@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>我们的星海 ✨</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%E2%9C%A8%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20261110">
-<link rel="stylesheet" href="styles-app.css?v=20261110">
-<link rel="stylesheet" href="styles-mobile.css?v=20261110">
+<link rel="stylesheet" href="styles.css?v=20261111">
+<link rel="stylesheet" href="styles-app.css?v=20261111">
+<link rel="stylesheet" href="styles-mobile.css?v=20261111">
 <script>
   /* 防闪烁：在样式渲染前就根据本地时间/记忆偏好预设白天或夜晚主题 */
   (function () {
@@ -125,7 +125,14 @@
               <button id="mNext" class="p-btn" title="下一首">⏭</button>
               <div class="p-info">
                 <div class="p-name"><span id="mTitle">未播放</span><span id="eq" class="eq"><i></i><i></i><i></i></span></div>
-                <input id="mVol" type="range" min="0" max="100" value="55" title="音量">
+                <input id="mSeek" type="range" min="0" max="1000" value="0" step="1" title="播放进度" disabled>
+                <div class="p-sub">
+                  <span id="mTime">00:00 / 00:00</span>
+                  <span class="vol-wrap" title="音量">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>
+                    <input id="mVol" type="range" min="0" max="100" value="55">
+                  </span>
+                </div>
               </div>
             </div>
             <div id="trackList" class="track-list"></div>
@@ -257,7 +264,7 @@
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.2/dist/3d-force-graph.min.js" crossorigin="anonymous"></script>
-  <script src="data/sample-photos.js?v=20261110"></script>
-  <script src="app.js?v=20261110"></script>
+  <script src="data/sample-photos.js?v=20261111"></script>
+  <script src="app.js?v=20261111"></script>
 </body>
 </html>

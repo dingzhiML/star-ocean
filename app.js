@@ -212,6 +212,22 @@ function initMusic() {
   const topBtn = $("#btnMusicToggle");
   const autoplayToggle = $("#autoplayToggle");
   const list = $("#trackList");
+  const seek = $("#mSeek");
+  const timeEl = $("#mTime");
+  let seeking = false;
+
+  const fmt = (s) => {
+    if (!isFinite(s) || s < 0) return "00:00";
+    s = Math.round(s);
+    return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  };
+  const updateSeekUI = () => {
+    const d = audio.duration, c = audio.currentTime || 0;
+    const hasDur = isFinite(d) && d > 0;
+    seek.disabled = !hasDur;
+    if (!seeking && hasDur) seek.value = Math.round((c / d) * 1000);
+    timeEl.textContent = fmt(c) + " / " + (hasDur ? fmt(d) : "--:--");
+  };
 
   const setPlayingUI = (playing) => {
     btnPlay.textContent = playing ? "⏸" : "▶";
@@ -248,6 +264,10 @@ function initMusic() {
     audio.title = t.orig;
     $("#mTitle").textContent = "《" + t.name + "》";
     renderTrackList();
+    seeking = false;
+    seek.value = 0;
+    seek.disabled = true;
+    timeEl.textContent = "00:00 / 00:00";
     audio.play().then(() => { pendingAutoplay = false; }).catch(() => { pendingAutoplay = true; });
   };
 
@@ -264,6 +284,21 @@ function initMusic() {
   audio.addEventListener("ended", () => playIdx(trackIdx + 1));
   audio.addEventListener("play", () => setPlayingUI(true));
   audio.addEventListener("pause", () => setPlayingUI(false));
+  audio.addEventListener("timeupdate", updateSeekUI);
+  audio.addEventListener("loadedmetadata", updateSeekUI);
+  // 拖动进度条：拖动中只预览时间，松手才跳转
+  seek.addEventListener("input", () => {
+    seeking = true;
+    if (isFinite(audio.duration) && audio.duration > 0) {
+      timeEl.textContent = fmt((seek.value / 1000) * audio.duration) + " / " + fmt(audio.duration);
+    }
+  });
+  seek.addEventListener("change", () => {
+    if (isFinite(audio.duration) && audio.duration > 0) {
+      audio.currentTime = (seek.value / 1000) * audio.duration;
+    }
+    seeking = false;
+  });
   $("#mVol").addEventListener("input", (e) => { audio.volume = e.target.value / 100; });
 
   musicWanted = musicPref();
@@ -1176,8 +1211,12 @@ async function init() {
   rebuild(false);
 
   // 测试钩子：?ui=drawer / search / card / add（无头浏览器截图验证用，正常访问不受影响）
-  const uiHook = new URLSearchParams(location.search).get("ui");
-  if (uiHook === "drawer") openDrawer();
+  const uiParams = new URLSearchParams(location.search);
+  const uiHook = uiParams.get("ui");
+  if (uiHook === "drawer") {
+    if (uiParams.has("expand")) $$(".drawer-acc").forEach((d) => { d.open = true; });
+    openDrawer();
+  }
   else if (uiHook === "search") setSearchMode(true);
   else if (uiHook === "card") { const p = state.photos[0]; if (p) openCard(p); }
   else if (uiHook === "add") { $("#addModal").classList.remove("hidden"); renderMyPhotos(); }

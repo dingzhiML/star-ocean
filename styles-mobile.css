@@ -17,12 +17,12 @@
   #scene, #scene canvas { touch-action: none; }
   body.drawer-open, body.search-open { overflow: hidden; }
 
-  /* 触屏没有真正的 hover：清掉点击后残留的悬停高亮 */
+  /* 触屏没有真正的 hover：清掉点击后残留的悬停高亮（扁平化版本） */
   .icon-btn:not(.active):hover {
     transform: none;
-    background: var(--glass-bg);
+    background: rgba(255, 250, 240, 0.07);
     border-color: var(--glass-border);
-    box-shadow: var(--glass-rim), var(--glass-drop);
+    box-shadow: none;
   }
   .mini-btn:hover { background: rgba(255, 250, 240, 0.08); color: var(--muted); transform: none; }
   [data-theme="day"] .mini-btn:hover { background: rgba(255, 255, 255, 0.4); }
@@ -149,7 +149,6 @@
   .drawer-body { gap: 10px; }
   .drawer-sec { padding: 11px; }
   .drawer-acc summary { padding: 12px 13px; }
-  .drawer .legend-list { max-height: 28vh; }
   .drawer .seg button { font-size: 12.5px; padding: 7px 0; }
   .drawer-btn { font-size: 13.5px; padding: 11px 10px; }
   .drawer .about-body { font-size: 12.5px; }
@@ -247,6 +246,13 @@
   .my-photos { margin-top: 18px; }
   .my-item img { width: 58px; height: 58px; }
   .my-item button { width: 22px; height: 22px; }
+
+  /* 进度条触控友好：加大热区与拖点 */
+  #mSeek { height: 8px; margin-top: 4px; }
+  #mSeek::-webkit-slider-thumb { width: 18px; height: 18px; }
+  #mSeek::-moz-range-thumb { width: 18px; height: 18px; }
+  .p-sub { margin-top: 5px; }
+  .vol-wrap { flex: 0 1 110px; }
 
   .fatal {
     top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -388,5 +394,4 @@
   .brand p { display: none; }
   .brand h1 { font-size: 20px; }
   .card img { max-height: 46vh; max-height: 46dvh; }
-  .drawer .legend-list { max-height: 20vh; }
 }
