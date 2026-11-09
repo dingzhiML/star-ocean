@@ -367,7 +367,7 @@ function labelSprite(text, colorHex) {
   if (THREE.SRGBColorSpace && "colorSpace" in tex) tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.9 });
   const sp = new THREE.Sprite(mat);
-  const h = 11;
+  const h = isMobileView() ? 13.5 : 11;
   sp.scale.set((h * w) / 90, h, 1);
   return sp;
 }
@@ -377,10 +377,11 @@ let graph = null;
 let dust = null;
 const clusterLayer = new THREE.Group();
 
-/* 取景：手机端留白更小、并抬起视角，让星海在竖屏里更饱满 */
+/* 取景：手机端留白更小、并抬起视角，让星海在竖屏里更饱满；大屏桌面收窄留白让星海更满 */
 function fitView(ms = 800) {
   if (!graph) return;
-  graph.zoomToFit(ms, isMobileView() ? 22 : 70);
+  const pad = isMobileView() ? 22 : (innerWidth >= 1600 ? 44 : 70);
+  graph.zoomToFit(ms, pad);
   clearTimeout(fitView._t);
   if (isMobileView()) fitView._t = setTimeout(tiltCameraForMobile, ms + 140);
 }
@@ -521,18 +522,22 @@ function initGraph() {
   graph.scene().add(clusterLayer);
 
   let wasMobileView = isMobileView();
+  let wasBigScreen = innerWidth >= 1600;
   let resizeFitTimer = null;
   window.addEventListener("resize", () => {
     graph.width(window.innerWidth).height(window.innerHeight);
     const nowMobile = isMobileView();
-    if (nowMobile !== wasMobileView) {
+    const nowBig = innerWidth >= 1600;
+    if (nowMobile !== wasMobileView || nowBig !== wasBigScreen) {
       wasMobileView = nowMobile;
-      // 横竖屏切换：节点尺寸与取景需要重建，否则尺寸按旧断点渲染
+      wasBigScreen = nowBig;
+      // 横竖屏切换 / 大屏档位切换：节点尺寸与取景需要重建，否则尺寸按旧断点渲染
       disposeNodeObjects(graph.graphData().nodes);
       graph.nodeThreeObject((n) => makeNodeObject(n));
       if (state.lastGd) buildClusterLayer(state.lastGd.keys, state.lastGd.centers);
       updateHintCopy();
-      setTimeout(() => fitView(700), 120);
+      if (nowMobile) setTimeout(() => fitView(700), 120);
+      else setTimeout(() => fitView(600), 120);
     }
     // 手机端屏幕尺寸/方向变化后重新取景，避免星海缩在一角或跑出画面
     if (isMobileView()) {
@@ -560,7 +565,7 @@ function initGraph() {
       o.halo.material.opacity = o.haloBase * tw * o.hoverAmt;
       const s = o.size * (1 + 0.1 * (o.hoverAmt - 1));
       o.photo.scale.set(s, s, 1);
-      o.halo.scale.set(s * 2.5, s * 2.5, 1);
+      o.halo.scale.set(s * o.haloScale, s * o.haloScale, 1);
     }
   };
   requestAnimationFrame(tick);
@@ -570,18 +575,21 @@ function makeNodeObject(node) {
   const p = node.photo;
   const color = colorForKey(node.cluster);
   const isDay = THEME.resolved === "day";
+  const isMob = isMobileView();
   const tex = state.texCache.get(p.src) || haloTexture("#ffc477");
-  const size = (8.5 + (hashStr(p.id) % 30) / 10 + (p._user ? 2.5 : 0)) * (isMobileView() ? 1.32 : 1);
+  const bigScreen = !isMob && innerWidth >= 1600;
+  const size = (8.5 + (hashStr(p.id) % 30) / 10 + (p._user ? 2.5 : 0)) * (isMob ? 1.32 : (bigScreen ? 1.12 : 1));
+  const haloScale = isMob ? 2.2 : 2.5;
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: haloTexture(color), transparent: true, opacity: isDay ? 0.32 : 0.5,
+    map: haloTexture(color), transparent: true, opacity: isDay ? 0.32 : (isMob ? 0.44 : 0.5),
     blending: isDay ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false,
   }));
-  halo.scale.set(size * 2.5, size * 2.5, 1);
+  halo.scale.set(size * haloScale, size * haloScale, 1);
   const photo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
   photo.scale.set(size, size, 1);
   const g = new THREE.Group();
   g.add(halo); g.add(photo);
-  node.__obj = { group: g, halo, photo, size, haloBase: isDay ? 0.32 : 0.5, phase: (hashStr(p.id) % 628) / 100, speed: 0.6 + (hashStr(p.id + "s") % 80) / 100, hoverAmt: 1 };
+  node.__obj = { group: g, halo, photo, size, haloScale, haloBase: isDay ? 0.32 : (isMob ? 0.44 : 0.5), phase: (hashStr(p.id) % 628) / 100, speed: 0.6 + (hashStr(p.id + "s") % 80) / 100, hoverAmt: 1 };
   return g;
 }
 
@@ -1166,6 +1174,29 @@ async function init() {
   initSearch();
   initThemeUI();
   rebuild(false);
+
+  // 测试钩子：?ui=drawer / search / card / add（无头浏览器截图验证用，正常访问不受影响）
+  const uiHook = new URLSearchParams(location.search).get("ui");
+  if (uiHook === "drawer") openDrawer();
+  else if (uiHook === "search") setSearchMode(true);
+  else if (uiHook === "card") { const p = state.photos[0]; if (p) openCard(p); }
+  else if (uiHook === "add") { $("#addModal").classList.remove("hidden"); renderMyPhotos(); }
+  else if (uiHook === "geo") {
+    const g = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right), t: Math.round(b.top), b: Math.round(b.bottom) }; };
+    const hud = document.querySelector(".hud-bottom");
+    const cs = hud ? getComputedStyle(hud) : null;
+    const info = JSON.stringify({
+      w: innerWidth, h: innerHeight,
+      pc: matchMedia("(pointer: coarse)").matches,
+      mq: isMobileView(),
+      pad: cs ? [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft] : null,
+      hud: g(".hud-bottom"), tl: g("#timeline"), body: g(".tl-body"),
+      scrollW: document.documentElement.scrollWidth,
+    });
+    document.title = "GEO " + info;
+    const f = $("#fatal");
+    if (f) { f.classList.remove("hidden"); f.style.fontSize = "11px"; $("#fatalMsg").textContent = info; }
+  }
 
   setProgress(100, "欢迎回家 ✨");
   const skipLoader = new URLSearchParams(location.search).has("noloader");

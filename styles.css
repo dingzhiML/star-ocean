@@ -612,11 +612,11 @@ html.theme-anim .p-btn, html.theme-anim .p-main {
   .hud-bottom { padding: 0 16px; }
 }
 
-/* 窄桌面窗口：详情卡避开顶栏与底栏，改为右侧竖向滚动区 */
+/* 窄桌面窗口：详情卡避开顶栏与底栏，改为右侧竖向滚动区（新版顶栏高约 61px） */
 @media (max-width: 1199px) {
   .card {
-    top: 140px;
-    bottom: 110px;
+    top: 96px;
+    bottom: 104px;
     right: 16px;
     transform: none;
     height: auto;
@@ -630,8 +630,8 @@ html.theme-anim .p-btn, html.theme-anim .p-main {
 /* 矮窗口桌面：详情卡同样避开顶栏与底栏 */
 @media (min-width: 1200px) and (max-height: 700px) {
   .card {
-    top: 140px;
-    bottom: 110px;
+    top: 96px;
+    bottom: 104px;
     transform: none;
     height: auto;
     max-height: none;

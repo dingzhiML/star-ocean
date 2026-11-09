@@ -10,6 +10,12 @@
   --drawer-sec-bg: rgba(255, 250, 240, 0.05);
   --drawer-sec-border: rgba(255, 250, 240, 0.1);
 }
+
+/* 测试钩子 ?notrans：禁用全部过渡/动画，无头截图用（让界面直接呈现最终状态） */
+.notrans *, .notrans *::before, .notrans *::after {
+  transition: none !important;
+  animation: none !important;
+}
 [data-theme="day"] {
   --drawer-bg: linear-gradient(170deg, rgba(255, 253, 248, 0.98), rgba(248, 242, 230, 0.98));
   --drawer-sec-bg: rgba(255, 255, 255, 0.5);
@@ -294,6 +300,26 @@
   .hint, .toast { bottom: 108px; }
 }
 
+
+/* ---------- 1920+ 大屏适配（时间线加宽、标题与按钮放大、边距加宽） ---------- */
+@media (min-width: 1600px) {
+  :root { --drawer-w: 400px; }
+  .hud-top { padding: 24px 34px 0; }
+  .brand h1 { font-size: 34px; letter-spacing: 7px; }
+  .brand p { font-size: 13px; letter-spacing: 3.5px; }
+  .hud-top .top-actions { gap: 12px; }
+  .hud-top .icon-btn { width: 44px; height: 44px; }
+  .hud-top .icon-btn svg { width: 20px; height: 20px; }
+  .hud-bottom { padding: 0 34px; bottom: 26px; }
+  .hud-bottom .timeline { width: 860px; max-width: 860px; padding: 13px 20px; }
+  .sweep-btn { width: 42px; height: 42px; font-size: 15px; }
+  .tl-labels { font-size: 13px; }
+  .hint, .toast { bottom: 136px; }
+}
+@media (min-width: 2200px) {
+  .brand h1 { font-size: 38px; }
+  .hud-bottom .timeline { width: 960px; max-width: 960px; }
+}
 
 /* 白天主题：香槟底上的按钮文字用深色，保证对比度 */
 [data-theme="day"] .seg button.active,
