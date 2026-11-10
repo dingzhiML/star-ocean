@@ -176,7 +176,15 @@
   padding: 2px 4px 2px 0;
   border-radius: 12px;
 }
-.drawer .panel-title { margin-bottom: 12px; }
+.drawer .panel-title {
+  margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.drawer .panel-title .mini-btn {
+  margin-left: auto; width: auto; height: auto;
+  padding: 3px 10px; border-radius: 999px; font-size: 11px;
+  flex-shrink: 0;
+}
 .drawer .legend { margin-top: 4px; }
 .drawer .legend-list::-webkit-scrollbar { width: 4px; }
 .drawer .legend-list::-webkit-scrollbar-thumb { background: rgba(255, 250, 240, 0.25); border-radius: 2px; }
