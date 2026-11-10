@@ -37,7 +37,7 @@
       l.href = href + "?bust=" + bust;
       document.head.appendChild(l);
     });
-    loadScript("data/sample-photos.js?v=20261121", function () {
+    loadScript("data/sample-photos.js?v=20261122", function () {
       loadScript("app.js?bust=" + bust, function () {
         var g = document.getElementById("gate");
         if (g) {
