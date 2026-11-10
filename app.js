@@ -501,6 +501,28 @@ function clearFocus(refit = true) {
   setFocusCluster(null);
   if (refit && graph) fitView(900);
 }
+/* 统一镜头动画：新动画自动取消旧动画（连续聚焦切换不叠帧、不卡顿） */
+let _camAnim = null;
+function flyCamera(pos, target, ms = 1100) {
+  if (!graph) return;
+  if (_camAnim) { cancelAnimationFrame(_camAnim.raf); _camAnim = null; }
+  const cam = graph.camera();
+  const p0 = cam.position.clone();
+  const t0 = graph.controls().target.clone();
+  const p1 = new THREE.Vector3(pos.x, pos.y, pos.z);
+  const t1 = new THREE.Vector3(target.x, target.y, target.z);
+  const start = performance.now();
+  const step = (now) => {
+    if (!_camAnim) return;
+    const k = Math.min(1, (now - start) / ms);
+    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    cam.position.copy(p0).lerp(p1, e);
+    graph.controls().target.copy(t0).lerp(t1, e);
+    if (k < 1) _camAnim.raf = requestAnimationFrame(step);
+    else _camAnim = null;
+  };
+  _camAnim = { raf: requestAnimationFrame(step) };
+}
 /* 飞向星团：按星团半径精确计算镜头距离，让星团恰好充满画面；
    桌面端把星团放到屏幕右侧，给左侧信息卡留出空间 */
 function flyToCluster(c) {
@@ -523,7 +545,7 @@ function flyToCluster(c) {
     target = target.add(right.multiplyScalar(-0.22 * widthWorld));
   }
   const pos = target.clone().add(dir.multiplyScalar(dist));
-  graph.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: target.x, y: target.y, z: target.z }, 1100);
+  flyCamera({ x: pos.x, y: pos.y, z: pos.z }, { x: target.x, y: target.y, z: target.z }, 1100);
 }
 /* 容差点选：点击位置附近 tol 像素内最近的可见星辰 */
 function pickNearestNode(px, py) {
@@ -697,12 +719,13 @@ function initGraph() {
     syncDockHeight();
   });
 
-  // 呼吸 / 悬停动画
+  // 呼吸 / 悬停 / 渐显 / 聚焦变暗 动画
   const tick = (t) => {
     requestAnimationFrame(tick);
     const time = t / 1000;
     if (dust) dust.rotation.y += 0.00035;
     const nodes = graph ? graph.graphData().nodes : [];
+    let visDirty = false;
     for (const node of nodes) {
       const o = node.__obj;
       if (!o) continue;
@@ -713,12 +736,19 @@ function initGraph() {
       const dimT = !state.focusCluster || node.cluster === state.focusCluster ? 1 : 0.14;
       if (o.dimAmt === undefined) o.dimAmt = 1;
       o.dimAmt += (dimT - o.dimAmt) * 0.08;
-      o.photo.material.opacity = o.dimAmt;
-      o.halo.material.opacity = o.haloBase * tw * o.hoverAmt * (0.3 + 0.7 * o.dimAmt);
+      // 时间渐显/渐隐（时光放映与时间线筛选用）
+      const want = node.__want !== false;
+      if (node.__reveal === undefined) node.__reveal = want ? 1 : 0;
+      node.__reveal += ((want ? 1 : 0) - node.__reveal) * 0.055;
+      if (!want && node.__visible && node.__reveal < 0.04) { node.__visible = false; visDirty = true; }
+      const rv = Math.max(0, Math.min(1, node.__reveal));
+      o.photo.material.opacity = o.dimAmt * rv;
+      o.halo.material.opacity = o.haloBase * tw * o.hoverAmt * (0.3 + 0.7 * o.dimAmt) * rv;
       const s = o.size * (1 + 0.1 * (o.hoverAmt - 1));
       o.photo.scale.set(s, s, 1);
       o.halo.scale.set(s * o.haloScale, s * o.haloScale, 1);
     }
+    if (visDirty) graph.nodeVisibility((n) => n.__visible);
   };
   requestAnimationFrame(tick);
 }
@@ -930,9 +960,6 @@ function renderLegend(gd) {
     el.className = "lg-item" + (state.focusCluster === k ? " active" : "");
     el.innerHTML = `<i class="lg-dot" style="background:${colorForKey(k)};color:${colorForKey(k)}"></i><span class="lg-name">${esc(k)}</span><span class="lg-count">${counts[k]}</span>`;
     el.addEventListener("click", () => {
-      // 节流：连续快速点击星团会叠满镜头动画导致页面卡顿
-      if (state._focusClickAt && Date.now() - state._focusClickAt < 700) return;
-      state._focusClickAt = Date.now();
       closeDrawer();
       if (state.focusCluster === k) {
         clearFocus();
@@ -950,12 +977,12 @@ function renderLegend(gd) {
 function flyToCenter(c) {
   // 星团中心距离随球体半径自适应（球越大飞得越远）
   const d = Math.max(120, (state.sphereR || 160)) * (isMobileView() ? 1.05 : 1.25);
-  graph.cameraPosition({ x: c.x + d * 0.62, y: c.y + d * 0.38, z: c.z + d * 0.68 }, { x: c.x, y: c.y, z: c.z }, 1100);
+  flyCamera({ x: c.x + d * 0.62, y: c.y + d * 0.38, z: c.z + d * 0.68 }, { x: c.x, y: c.y, z: c.z }, 1100);
 }
 
 function flyToNode(node) {
   const d = isMobileView() ? 92 : 130;
-  graph.cameraPosition(
+  flyCamera(
     { x: node.x + d * 0.55, y: node.y + d * 0.35, z: node.z + d * 0.75 },
     { x: node.x, y: node.y, z: node.z }, 900
   );
@@ -989,26 +1016,43 @@ function initStateRange() {
 function applyTimeFilter() {
   let [from, to] = state.range;
   if (from > to) [from, to] = [to, from];
-  for (const node of graph.graphData().nodes) {
-    node.__visible = node.photo.year >= from && node.photo.year <= to;
+  const nodes = graph.graphData().nodes;
+  let visChanged = false;
+  // 渐显系统：进入范围的星辰标记 __want=true（tick 中透明度 0→1 渐入）；
+  // 离开范围的渐隐至接近 0 后才真正隐藏（由 tick 驱动）
+  for (const node of nodes) {
+    const want = node.photo.year >= from && node.photo.year <= to;
+    node.__want = want;
+    if (want && !node.__visible) {
+      node.__visible = true;
+      node.__reveal = 0.001;              // 从透明开始渐显
+      visChanged = true;
+    } else if (!want && node.__visible && (node.__reveal === undefined || node.__reveal <= 0.03)) {
+      node.__visible = false;             // 已渐隐完毕的才隐藏
+      visChanged = true;
+    }
   }
   for (const l of graph.graphData().links) {
     const s = typeof l.source === "object" ? l.source : state.nodeById.get(l.source);
     const t = typeof l.target === "object" ? l.target : state.nodeById.get(l.target);
-    l.__visible = !!(s && t && s.__visible && t.__visible);
+    const want = !!(s && t && s.__visible && t.__visible);
+    if (l.__visible !== want) { l.__visible = want; visChanged = true; }
   }
-  graph.nodeVisibility((n) => n.__visible);
-  graph.linkVisibility((l) => l.__visible);
+  if (visChanged) {
+    graph.nodeVisibility((n) => n.__visible);
+    graph.linkVisibility((l) => l.__visible);
+  }
   // 滑块与填充
   const f = $("#tlFrom"), t = $("#tlTo");
-  f.value = from; t.value = to;
-  $("#tlFromLabel").textContent = from + "年";
-  $("#tlToLabel").textContent = to + "年";
+  const fromY = Math.round(from), toY = Math.round(to);
+  f.value = fromY; t.value = toY;
+  if (applyTimeFilter._from !== fromY) { $("#tlFromLabel").textContent = fromY + "年"; applyTimeFilter._from = fromY; }
+  if (applyTimeFilter._to !== toY) { $("#tlToLabel").textContent = toY + "年"; applyTimeFilter._to = toY; }
   const span = Math.max(1, state.maxYear - state.minYear);
   const fill = $("#tlFill");
   fill.style.left = ((from - state.minYear) / span) * 100 + "%";
   fill.style.width = Math.max(2, ((to - from) / span) * 100) + "%";
-  if (state.selected && !state.selected.__visible) closeCard();
+  if (state.selected && state.selected.__want === false) closeCard();
 }
 
 function initTimelineUI() {
@@ -1029,23 +1073,29 @@ function initTimelineUI() {
   });
   $("#tlReset").addEventListener("click", () => { stopSweep(); state.range = [state.minYear, state.maxYear]; applyTimeFilter(); });
   $("#btnSweep").addEventListener("click", () => {
-    if (state.sweepId) { stopSweep(); return; }
+    if (state._sweepRAF) { stopSweep(); return; }
     const btn = $("#btnSweep");
     btn.textContent = "⏸"; btn.classList.add("playing");
-    let y = state.minYear;
-    state.range = [state.minYear, y];
-    applyTimeFilter();
-    state.sweepId = setInterval(() => {
-      y += 1;
-      if (y > state.maxYear) { stopSweep(); return; }
-      state.range = [state.minYear, y];
+    // 连续放映：星海从最早一颗星辰开始，按拍摄时间逐颗渐显，时间线横轴平滑推进
+    const dur = Math.max(2400, (state.maxYear - state.minYear) * 950);
+    const t0 = performance.now();
+    const step = (now) => {
+      if (!state._sweepRAF) return;
+      const p = Math.min(1, (now - t0) / dur);
+      const to = state.minYear + p * (state.maxYear - state.minYear);
+      state.range = [state.minYear, to];
       applyTimeFilter();
-    }, 650);
+      if (p >= 1) { stopSweep(); return; }
+      state._sweepRAF = requestAnimationFrame(step);
+    };
+    state._sweepRAF = requestAnimationFrame(step);
+    state.range = [state.minYear, state.minYear];
+    applyTimeFilter();
   });
 }
 
 function stopSweep() {
-  if (state.sweepId) { clearInterval(state.sweepId); state.sweepId = null; }
+  if (state._sweepRAF) { cancelAnimationFrame(state._sweepRAF); state._sweepRAF = null; }
   const btn = $("#btnSweep");
   btn.textContent = "▶"; btn.classList.remove("playing");
 }
