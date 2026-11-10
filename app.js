@@ -930,6 +930,9 @@ function renderLegend(gd) {
     el.className = "lg-item" + (state.focusCluster === k ? " active" : "");
     el.innerHTML = `<i class="lg-dot" style="background:${colorForKey(k)};color:${colorForKey(k)}"></i><span class="lg-name">${esc(k)}</span><span class="lg-count">${counts[k]}</span>`;
     el.addEventListener("click", () => {
+      // 节流：连续快速点击星团会叠满镜头动画导致页面卡顿
+      if (state._focusClickAt && Date.now() - state._focusClickAt < 700) return;
+      state._focusClickAt = Date.now();
       closeDrawer();
       if (state.focusCluster === k) {
         clearFocus();
