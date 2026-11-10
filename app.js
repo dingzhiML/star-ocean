@@ -923,7 +923,9 @@ function renderLegend(gd) {
   for (const p of state.photos) counts[p.clusterKey] = (counts[p.clusterKey] || 0) + 1;
   const list = $("#legendList");
   list.innerHTML = "";
-  for (const k of gd.keys) {
+  // 「其他」永远排在最后，其余保持原有顺序
+  const keys = [...gd.keys].sort((a, b) => (String(a).startsWith("其他") ? 1 : 0) - (String(b).startsWith("其他") ? 1 : 0));
+  for (const k of keys) {
     const el = document.createElement("div");
     el.className = "lg-item" + (state.focusCluster === k ? " active" : "");
     el.innerHTML = `<i class="lg-dot" style="background:${colorForKey(k)};color:${colorForKey(k)}"></i><span class="lg-name">${esc(k)}</span><span class="lg-count">${counts[k]}</span>`;
