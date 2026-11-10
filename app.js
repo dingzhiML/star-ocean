@@ -528,6 +528,8 @@ function flyToCluster(c) {
 /* 容差点选：点击位置附近 tol 像素内最近的可见星辰 */
 function pickNearestNode(px, py) {
   const tol = isMobileView() ? 26 : 18;
+  // 手机端：多指手势（捏合缩放）结束后 400ms 内的"点击"是手势残留，忽略
+  if (isMobileView() && Date.now() - (state._lastGestureEnd || 0) < 400) return null;
   let best = null, bestD = tol * tol;
   for (const n of graph.graphData().nodes) {
     if (!n.__visible) continue;
@@ -610,7 +612,11 @@ function initGraph() {
       state.hovered = node;
       document.body.style.cursor = node ? "pointer" : "default";
     })
-    .onNodeClick((node) => { openCard(node.photo); flyToNode(node); })
+    .onNodeClick((node) => {
+      // 手机端：捏合缩放结束后的"点击"是手势残留，忽略
+      if (isMobileView() && Date.now() - (state._lastGestureEnd || 0) < 400) return;
+      openCard(node.photo); flyToNode(node);
+    })
     .onBackgroundClick((ev) => {
       // 容差点选：点到星辰附近也能选中，不必精确点中
       const pick = ev && typeof ev.clientX === "number" ? pickNearestNode(ev.clientX, ev.clientY) : null;
@@ -622,6 +628,18 @@ function initGraph() {
   controls.autoRotate = true;
   controls.autoRotateSpeed = 0.45;
   if ("enableDamping" in controls) controls.enableDamping = true;
+  // 手机端：禁用节点拖拽，保证单指拖动永远是旋转/平移视角；
+  // 否则聚焦后星星铺满屏幕，拖动全被识别成"拖星星"，视角无法操作
+  if (isMobileView()) graph.enableNodeDrag(false);
+
+  // 手机端：记录多指手势结束时刻（配合点击守卫，防止捏合后误开卡片）
+  const sceneEl = $("#scene");
+  if (sceneEl) {
+    sceneEl.addEventListener("touchstart", (e) => { if (e.touches.length >= 2) state._pinching = true; }, { passive: true });
+    sceneEl.addEventListener("touchend", (e) => {
+      if (state._pinching && e.touches.length === 0) { state._lastGestureEnd = Date.now(); state._pinching = false; }
+    }, { passive: true });
+  }
 
   graph.onEngineStop(() => {
     if (state.firstFit) { state.firstFit = false; fitView(900); }

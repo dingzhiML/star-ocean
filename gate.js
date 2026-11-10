@@ -28,8 +28,9 @@
     document.body.appendChild(s);
   }
   function bootApp() {
-    loadScript("data/sample-photos.js?v=20261115", function () {
-      loadScript("app.js?v=20261115", function () {
+    document.body.classList.remove("gate-active"); // 防止 overflow:hidden 残留
+    loadScript("data/sample-photos.js?v=20261116", function () {
+      loadScript("app.js?v=20261116", function () {
         var g = document.getElementById("gate");
         if (g) {
           g.classList.add("gate-done");
