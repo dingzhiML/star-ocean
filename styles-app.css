@@ -166,14 +166,18 @@
    !important 防止任何规则覆盖；legend 容器同时裁切兜底 */
 .drawer .legend {
   overflow: hidden;
+  border-radius: 12px;
 }
 .drawer .legend-list {
   max-height: 34vh !important;
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  padding-right: 4px;
+  padding: 2px 4px 2px 0;
+  border-radius: 12px;
 }
+.drawer .panel-title { margin-bottom: 12px; }
+.drawer .legend { margin-top: 4px; }
 .drawer .legend-list::-webkit-scrollbar { width: 4px; }
 .drawer .legend-list::-webkit-scrollbar-thumb { background: rgba(255, 250, 240, 0.25); border-radius: 2px; }
 .drawer .panel-title { margin-bottom: 6px; }
@@ -409,3 +413,26 @@
 [data-theme="day"] .p-main {
   color: #3b2c18;
 }
+
+/* 白天主题：按钮彻底扁平（半透明白底 + 深色细边，无阴影无渐变） */
+[data-theme="day"] .btn.primary,
+[data-theme="day"] .sweep-btn,
+[data-theme="day"] .p-main,
+[data-theme="day"] .drawer-btn.primary,
+[data-theme="day"] .seg button.active,
+[data-theme="day"] .theme-seg button.active,
+[data-theme="day"] .track-item.active {
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid rgba(120, 95, 60, 0.4) !important;
+  box-shadow: none !important;
+  filter: none !important;
+}
+[data-theme="day"] .icon-btn {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(120, 95, 60, 0.28);
+  box-shadow: none !important;
+}
+[data-theme="day"] .icon-btn:hover { background: rgba(255, 255, 255, 0.55); }
+[data-theme="day"] .btn.primary:hover,
+[data-theme="day"] .sweep-btn:hover { filter: none; background: rgba(255, 255, 255, 0.6); }
+[data-theme="day"] .mini-btn { background: rgba(255, 255, 255, 0.35); border-color: rgba(120, 95, 60, 0.25); box-shadow: none !important; }
