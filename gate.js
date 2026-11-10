@@ -29,8 +29,16 @@
   }
   function bootApp() {
     document.body.classList.remove("gate-active"); // 防止 overflow:hidden 残留
-    loadScript("data/sample-photos.js?v=20261120", function () {
-      loadScript("app.js?v=20261120", function () {
+    // 缓存加固：样式与数据用固定版本，应用代码每次打开都强制拉最新（避免手机缓存旧逻辑）
+    var bust = Date.now();
+    ["styles.css", "styles-app.css", "styles-mobile.css"].forEach(function (href) {
+      var l = document.createElement("link");
+      l.rel = "stylesheet";
+      l.href = href + "?bust=" + bust;
+      document.head.appendChild(l);
+    });
+    loadScript("data/sample-photos.js?v=20261121", function () {
+      loadScript("app.js?bust=" + bust, function () {
         var g = document.getElementById("gate");
         if (g) {
           g.classList.add("gate-done");
