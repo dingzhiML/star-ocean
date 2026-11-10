@@ -936,6 +936,9 @@ function rebuild(keepCamera = true) {
   const gd = buildGraphData();
   state.lastGd = gd;
   graph.graphData({ nodes: gd.nodes, links: gd.links });
+  // 关键：dispose 后必须重新设置 nodeThreeObject（新函数引用会触发全量重建），
+  // 否则复用节点时 __obj 为 null，变暗/呼吸/渐显动画全部失效
+  graph.nodeThreeObject((n) => makeNodeObject(n));
   setClusterForce(gd.centers);
   applyFocusLinkStyles();
   buildClusterLayer(gd.keys, gd.centers);
