@@ -162,10 +162,14 @@
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 /* 图例自然撑开：不做内部滚动，整个抽屉统一滚动，下方模块随之下移 */
-/* 探索列表：在自身框内滚动，无论多少地点都不侵占下方模块 */
+/* 探索列表：在自身框内滚动，无论多少地点都不侵占下方模块
+   !important 防止任何规则覆盖；legend 容器同时裁切兜底 */
+.drawer .legend {
+  overflow: hidden;
+}
 .drawer .legend-list {
-  max-height: 34vh;
-  overflow-y: auto;
+  max-height: 34vh !important;
+  overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   padding-right: 4px;
