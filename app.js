@@ -152,6 +152,9 @@ const state = {
   firstFit: true,
   dust: null,              // 背景星尘对象（主题切换时改色）
   lastGd: null,            // 最近一次图数据（主题切换时重建标签/图例用）
+  sphereR: 160,            // 星海球体半径（布局时更新，飞行距离自适应）
+  focusCluster: null,      // 当前聚焦的星团（null = 未聚焦）
+  _prevRotate: undefined,  // 聚焦前的自动旋转状态
 };
 
 // 初始化主题意图（防闪烁脚本已提前把 CSS 主题设好，这里同步 JS 状态）
@@ -450,6 +453,92 @@ function updateHintCopy() {
     : "点右上角菜单探索 · 拖拽旋转 · 滚轮缩放 · 点击照片看故事";
 }
 
+/* ---------------- 聚焦系统（星团聚焦 / 其他星团变暗） ---------------- */
+function linkClusters(l) {
+  const s = typeof l.source === "object" ? l.source : state.nodeById.get(l.source);
+  const t = typeof l.target === "object" ? l.target : state.nodeById.get(l.target);
+  return [s && s.cluster, t && t.cluster];
+}
+function currentLinkColor(l) {
+  const day = THEME.resolved === "day";
+  const fc = state.focusCluster;
+  if (!fc) return day ? "rgba(150,118,72,0.4)" : "rgba(255,240,222,0.5)";
+  const [a, b] = linkClusters(l);
+  const inFocus = a === fc || b === fc;
+  return inFocus ? (day ? "rgba(150,118,72,0.55)" : "rgba(255,240,222,0.55)")
+                 : (day ? "rgba(150,118,72,0.05)" : "rgba(255,240,222,0.05)");
+}
+function currentLinkParticles(l) {
+  if (!state.focusCluster) return 1;
+  const [a, b] = linkClusters(l);
+  return (a === state.focusCluster || b === state.focusCluster) ? 2 : 0;
+}
+function applyFocusLinkStyles() {
+  if (!graph) return;
+  graph.linkColor((l) => currentLinkColor(l));
+  graph.linkDirectionalParticles((l) => currentLinkParticles(l));
+}
+function setFocusCluster(key) {
+  state.focusCluster = key || null;
+  document.body.classList.toggle("focus-mode", !!state.focusCluster);
+  if (graph) {
+    const c = graph.controls();
+    if (state.focusCluster) {
+      state._prevRotate = c.autoRotate;
+      c.autoRotate = false;               // 聚焦时暂停自动旋转，画面稳定
+    } else if (state._prevRotate !== undefined) {
+      const wantRotate = $("#btnRotate") ? $("#btnRotate").classList.contains("active") : true;
+      c.autoRotate = wantRotate;
+      state._prevRotate = undefined;
+    }
+    applyFocusLinkStyles();
+    if (state.lastGd) buildClusterLayer(state.lastGd.keys, state.lastGd.centers);
+  }
+  if (state.lastGd) renderLegend(state.lastGd);
+}
+function clearFocus(refit = true) {
+  if (!state.focusCluster) return;
+  setFocusCluster(null);
+  if (refit && graph) fitView(900);
+}
+/* 飞向星团：按星团半径精确计算镜头距离，让星团恰好充满画面；
+   桌面端把星团放到屏幕右侧，给左侧信息卡留出空间 */
+function flyToCluster(c) {
+  const cam = graph.camera();
+  const fov = cam.fov || 40;
+  const tanH = Math.tan((fov / 2) * Math.PI / 180);
+  const aspect = innerWidth / Math.max(1, innerHeight);
+  const vertDist = (c.r * 1.06) / tanH;
+  const horizDist = (c.r * 1.06) / (tanH * Math.max(0.5, aspect));
+  const dist = Math.max(120, vertDist, isMobileView() ? horizDist : vertDist);
+  const dir = cam.position.clone().sub(new THREE.Vector3(c.x, c.y, c.z));
+  if (dir.lengthSq() < 1) dir.set(0.5, 0.4, 0.75);
+  dir.normalize();
+  const fwd = dir.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+  let target = new THREE.Vector3(c.x, c.y, c.z);
+  if (!isMobileView()) {
+    // 视线目标左移 → 星团呈现在屏幕右侧，左侧留给信息卡
+    const widthWorld = 2 * dist * tanH * aspect;
+    target = target.add(right.multiplyScalar(-0.22 * widthWorld));
+  }
+  const pos = target.clone().add(dir.multiplyScalar(dist));
+  graph.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: target.x, y: target.y, z: target.z }, 1100);
+}
+/* 容差点选：点击位置附近 tol 像素内最近的可见星辰 */
+function pickNearestNode(px, py) {
+  const tol = isMobileView() ? 26 : 18;
+  let best = null, bestD = tol * tol;
+  for (const n of graph.graphData().nodes) {
+    if (!n.__visible) continue;
+    const sc = graph.graph2ScreenCoords(n.x, n.y, n.z);
+    const dx = sc.x - px, dy = sc.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD) { bestD = d2; best = n; }
+  }
+  return best;
+}
+
 /* ---------------- 全屏搜索（手机 / 电脑共用） ---------------- */
 function setSearchMode(on) {
   const page = $("#searchPage");
@@ -505,10 +594,10 @@ function initGraph() {
     .showNavInfo(false)
     .nodeVisibility((n) => n.__visible)
     .linkVisibility((l) => l.__visible)
-    .linkColor(() => isDay ? "rgba(150,118,72,0.4)" : "rgba(255,240,222,0.5)")
-    .linkOpacity(0.16)
+    .linkColor((l) => currentLinkColor(l))
+    .linkOpacity(0.1)
     .linkWidth(0)
-    .linkDirectionalParticles((l) => (l.__cross ? 1 : 2))
+    .linkDirectionalParticles((l) => currentLinkParticles(l))
     .linkDirectionalParticleSpeed(0.004)
     .linkDirectionalParticleWidth(1.5)
     .linkDirectionalParticleColor(() => isDay ? "#a8865a" : "#fff4e4")
@@ -522,7 +611,12 @@ function initGraph() {
       document.body.style.cursor = node ? "pointer" : "default";
     })
     .onNodeClick((node) => { openCard(node.photo); flyToNode(node); })
-    .onBackgroundClick(() => closeCard());
+    .onBackgroundClick((ev) => {
+      // 容差点选：点到星辰附近也能选中，不必精确点中
+      const pick = ev && typeof ev.clientX === "number" ? pickNearestNode(ev.clientX, ev.clientY) : null;
+      if (pick) { openCard(pick.photo); flyToNode(pick); }
+      else closeCard();
+    });
 
   const controls = graph.controls();
   controls.autoRotate = true;
@@ -597,7 +691,12 @@ function initGraph() {
       const focus = state.hovered === node || state.selected === node ? 1.4 : 1;
       o.hoverAmt += (focus - o.hoverAmt) * 0.12;
       const tw = 0.72 + 0.28 * Math.sin(time * o.speed + o.phase);
-      o.halo.material.opacity = o.haloBase * tw * o.hoverAmt;
+      // 聚焦模式：非聚焦星团整体变暗淡（平滑过渡）
+      const dimT = !state.focusCluster || node.cluster === state.focusCluster ? 1 : 0.14;
+      if (o.dimAmt === undefined) o.dimAmt = 1;
+      o.dimAmt += (dimT - o.dimAmt) * 0.08;
+      o.photo.material.opacity = o.dimAmt;
+      o.halo.material.opacity = o.haloBase * tw * o.hoverAmt * (0.3 + 0.7 * o.dimAmt);
       const s = o.size * (1 + 0.1 * (o.hoverAmt - 1));
       o.photo.scale.set(s, s, 1);
       o.halo.scale.set(s * o.haloScale, s * o.haloScale, 1);
@@ -613,10 +712,12 @@ function makeNodeObject(node) {
   const isMob = isMobileView();
   const tex = state.texCache.get(p.src) || haloTexture("#ffc477");
   const bigScreen = !isMob && innerWidth >= 1600;
-  const size = (8.5 + (hashStr(p.id) % 30) / 10 + (p._user ? 2.5 : 0)) * (isMob ? 1.32 : (bigScreen ? 1.12 : 1));
-  const haloScale = isMob ? 2.2 : 2.5;
+  // 照片多时保持星辰小巧（太大会显得乱），点击有容差机制兜底
+  const manyN = state.photos.length >= 120 ? 1.05 : 1;
+  const size = (8.5 + (hashStr(p.id) % 30) / 10 + (p._user ? 2.5 : 0)) * (isMob ? 1.32 : (bigScreen ? 1.12 : 1)) * manyN;
+  const haloScale = isMob ? 1.85 : 2.0;
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: haloTexture(color), transparent: true, opacity: isDay ? 0.32 : (isMob ? 0.44 : 0.5),
+    map: haloTexture(color), transparent: true, opacity: isDay ? 0.24 : (isMob ? 0.3 : 0.34),
     blending: isDay ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false,
   }));
   halo.scale.set(size * haloScale, size * haloScale, 1);
@@ -624,7 +725,7 @@ function makeNodeObject(node) {
   photo.scale.set(size, size, 1);
   const g = new THREE.Group();
   g.add(halo); g.add(photo);
-  node.__obj = { group: g, halo, photo, size, haloScale, haloBase: isDay ? 0.32 : (isMob ? 0.44 : 0.5), phase: (hashStr(p.id) % 628) / 100, speed: 0.6 + (hashStr(p.id + "s") % 80) / 100, hoverAmt: 1 };
+  node.__obj = { group: g, halo, photo, size, haloScale, haloBase: isDay ? 0.24 : (isMob ? 0.3 : 0.34), phase: (hashStr(p.id) % 628) / 100, speed: 0.6 + (hashStr(p.id + "s") % 80) / 100, hoverAmt: 1 };
   return g;
 }
 
@@ -637,7 +738,9 @@ function disposeNodeObjects(nodes) {
   }
 }
 
-/* ---------------- 数据构建 ---------------- */
+/* ---------------- 数据构建：球体星海布局 ----------------
+   所有照片汇聚成一个实心球体：半径随照片总数按体积增长（照片越多球越大）；
+   星团在球内按斐波那契球面分布、互相交融，照片数多的星团体积更大。 */
 function buildGraphData() {
   const photos = state.photos;
   for (const p of photos) {
@@ -647,27 +750,56 @@ function buildGraphData() {
   }
   const keys = [...new Set(photos.map((p) => p.clusterKey))];
   keys.sort((a, b) => a.localeCompare(b, "zh-Hans-CN", { numeric: true }));
-  const R = 95 + keys.length * 13;
+
+  const N = Math.max(1, photos.length);
+  const R0 = 30 * Math.cbrt(N);      // 星海球体半径：随照片数增长（N=225 → 约182）
+  state.sphereR = R0;
+  const K = keys.length;
+  const countOf = {};
+  for (const p of photos) countOf[p.clusterKey] = (countOf[p.clusterKey] || 0) + 1;
+
   const centers = {};
   keys.forEach((k, i) => {
-    const a = (2 * Math.PI * i) / keys.length - Math.PI / 2;
-    centers[k] = { x: Math.cos(a) * R, y: ((hashStr(k) % 90) - 45), z: Math.sin(a) * R };
+    const m = countOf[k] || 1;
+    // 星团球半径：按该星团照片占比切分球体体积，星团之间轻微交融
+    const r_c = Math.max(26, R0 * Math.cbrt(m / N) * 0.62 + 12);
+    let cx = 0, cy = 0, cz = 0;
+    if (K > 1) {
+      // 斐波那契球面：星团中心均匀铺在球内
+      const phi = Math.acos(1 - (2 * (i + 0.5)) / K);
+      const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+      const Rc = R0 * 0.5;
+      cx = Math.cos(theta) * Math.sin(phi) * Rc;
+      cy = Math.cos(phi) * Rc * 0.78;   // 稍压扁，更有星系盘的层次感
+      cz = Math.sin(theta) * Math.sin(phi) * Rc;
+    }
+    centers[k] = { x: cx, y: cy, z: cz, r: r_c };
   });
 
-  // 复用旧节点保持位置，新增节点放到所属星系中心附近
+  // 复用旧节点保持位置（力导向会把它们拉到新家），新增节点直接放进所属星团球内
   const nodes = [];
   const seen = new Set();
   for (const p of photos) {
     let node = state.nodeById.get(p.id);
+    const c = centers[p.clusterKey];
+    // 每个节点的"家"：星团球内的固定随机点（重构时更新，力导向把星星拉回家）
+    const rr = c.r * Math.cbrt(Math.random());
+    const ang = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    const home = {
+      x: rr * Math.sin(ph) * Math.cos(ang),
+      y: rr * Math.sin(ph) * Math.sin(ang) * 0.85,
+      z: rr * Math.cos(ph),
+    };
     if (!node) {
-      const c = centers[p.clusterKey];
       node = {
         id: p.id,
-        x: (c ? c.x : 0) + (Math.random() - 0.5) * 60,
-        y: (c ? c.y : 0) + (Math.random() - 0.5) * 40,
-        z: (c ? c.z : 0) + (Math.random() - 0.5) * 60,
+        x: c.x + home.x,
+        y: c.y + home.y,
+        z: c.z + home.z,
       };
     }
+    node.__home = home;
     node.photo = p;
     node.cluster = p.clusterKey;
     if (!node.__visible) node.__visible = true;
@@ -709,9 +841,11 @@ function setClusterForce(centers) {
     for (const n of graph.graphData().nodes) {
       const c = centers[n.cluster];
       if (!c) continue;
-      n.vx += (c.x - n.x) * alpha * 1.1;
-      n.vy += (c.y - n.y) * alpha * 0.7;
-      n.vz += (c.z - n.z) * alpha * 1.1;
+      // 拉向星团球内的"家"：整个星团聚成一个球，所有星团融成一颗大球
+      const h = n.__home || { x: 0, y: 0, z: 0 };
+      n.vx += (c.x + h.x - n.x) * alpha * 1.2;
+      n.vy += (c.y + h.y - n.y) * alpha * 0.9;
+      n.vz += (c.z + h.z - n.z) * alpha * 1.2;
     }
   });
 }
@@ -732,22 +866,30 @@ function buildClusterLayer(keys, centers) {
       map: haloTexture(color), transparent: true, opacity: isDay ? 0.2 : 0.14,
       blending: isDay ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false,
     }));
-    core.scale.set(150, 150, 1);
+    const coreS = Math.max(150, (c.r || 60) * 1.7);
+    core.scale.set(coreS, coreS, 1);
     core.position.set(c.x, c.y, c.z);
     clusterLayer.add(core);
     const label = labelSprite(k, color);
-    label.position.set(c.x, c.y + 52, c.z);
+    label.position.set(c.x, c.y + Math.max(38, (c.r || 60) * 0.92), c.z);
     clusterLayer.add(label);
   }
 }
 
 /* ---------------- 重建 ---------------- */
 function rebuild(keepCamera = true) {
+  // 切换分组/增删照片时退出聚焦
+  if (state.focusCluster) {
+    state.focusCluster = null;
+    document.body.classList.remove("focus-mode");
+    try { graph.controls().autoRotate = $("#btnRotate").classList.contains("active"); } catch (e) {}
+  }
   disposeNodeObjects(graph.graphData().nodes);
   const gd = buildGraphData();
   state.lastGd = gd;
   graph.graphData({ nodes: gd.nodes, links: gd.links });
   setClusterForce(gd.centers);
+  applyFocusLinkStyles();
   buildClusterLayer(gd.keys, gd.centers);
   renderLegend(gd);
   initStateRange();
@@ -765,15 +907,26 @@ function renderLegend(gd) {
   list.innerHTML = "";
   for (const k of gd.keys) {
     const el = document.createElement("div");
-    el.className = "lg-item";
+    el.className = "lg-item" + (state.focusCluster === k ? " active" : "");
     el.innerHTML = `<i class="lg-dot" style="background:${colorForKey(k)};color:${colorForKey(k)}"></i><span class="lg-name">${esc(k)}</span><span class="lg-count">${counts[k]}</span>`;
-    el.addEventListener("click", () => { closeDrawer(); flyToCenter(gd.centers[k]); });
+    el.addEventListener("click", () => {
+      closeDrawer();
+      if (state.focusCluster === k) {
+        clearFocus();
+        toast("已退出聚焦");
+        return;
+      }
+      setFocusCluster(k);
+      flyToCluster(gd.centers[k]);
+      toast(`已聚焦「${k}」 · 其他星团已变暗 · 再点一次图例可退出`);
+    });
     list.appendChild(el);
   }
 }
 
 function flyToCenter(c) {
-  const d = isMobileView() ? 185 : 235;
+  // 星团中心距离随球体半径自适应（球越大飞得越远）
+  const d = Math.max(120, (state.sphereR || 160)) * (isMobileView() ? 1.05 : 1.25);
   graph.cameraPosition({ x: c.x + d * 0.62, y: c.y + d * 0.38, z: c.z + d * 0.68 }, { x: c.x, y: c.y, z: c.z }, 1100);
 }
 
@@ -943,7 +1096,11 @@ function openCard(p) {
   closeDrawer();
   const node = state.nodeById.get(p.id);
   state.selected = node || null;
-  $("#cardImg").src = p.src;
+  // 详情页用高清图（full），星辰节点用的是缩略图（src）
+  const img = $("#cardImg");
+  img.src = p.full || p.src;
+  img.style.opacity = "0";
+  img.onload = () => { img.style.opacity = "1"; };
   $("#cardTitle").textContent = p.title;
   $("#cardDate").textContent = p.date;
   $("#cardPlace").textContent = p.place || "—";
@@ -995,7 +1152,9 @@ function initAddPanel() {
     if (e.key === "Escape") {
       closeDrawer();
       $$(".modal").forEach((m) => m.classList.add("hidden"));
+      $("#lightbox").classList.add("hidden");
       closeCard();
+      clearFocus();
       setSearchMode(false);
       $("#searchResults").classList.add("hidden");
     }
@@ -1137,6 +1296,16 @@ function initOtherUI() {
     if (isMobileView()) closeCard();
     flyToNode(node);
   });
+  // 点击详情卡大图 → 灯箱放大
+  const cardImg = $("#cardImg");
+  cardImg.style.cursor = "zoom-in";
+  cardImg.addEventListener("click", () => {
+    const p = state.selected && state.selected.photo;
+    if (!p) return;
+    $("#lightboxImg").src = p.full || p.src;
+    $("#lightbox").classList.remove("hidden");
+  });
+  $("#lightbox").addEventListener("click", () => $("#lightbox").classList.add("hidden"));
   $("#cardDelete").addEventListener("click", async () => {
     const node = state.selected;
     if (!node) return;
@@ -1166,15 +1335,22 @@ function setProgress(pct, text) {
 async function preloadTextures(photos, onEach) {
   const srcs = [...new Set(photos.map((p) => p.src))];
   let done = 0;
-  for (const src of srcs) {
-    if (state.texCache.has(src)) { done++; continue; }
-    try {
-      const img = await loadImage(src);
-      state.texCache.set(src, circleTexture(img));
-    } catch (e) { console.warn(e); }
-    done++;
-    onEach(done / srcs.length);
-  }
+  const CONCURRENCY = 6; // 并发加载，225 张缩略图也能秒级完成
+  const queue = srcs.slice();
+  const worker = async () => {
+    while (queue.length) {
+      const src = queue.shift();
+      if (!state.texCache.has(src)) {
+        try {
+          const img = await loadImage(src);
+          state.texCache.set(src, circleTexture(img));
+        } catch (e) { console.warn("纹理加载失败:", src); }
+      }
+      done++;
+      onEach(done / srcs.length);
+    }
+  };
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 }
 
 async function init() {
@@ -1220,6 +1396,19 @@ async function init() {
   else if (uiHook === "search") setSearchMode(true);
   else if (uiHook === "card") { const p = state.photos[0]; if (p) openCard(p); }
   else if (uiHook === "add") { $("#addModal").classList.remove("hidden"); renderMyPhotos(); }
+  else if (uiHook === "focus") {
+    // 聚焦模式测试：?ui=focus&cluster=2023
+    const k = uiParams.get("cluster") || (state.lastGd && state.lastGd.keys[0]);
+    if (k) {
+      setFocusCluster(k);
+      const p = state.photos.find((x) => x.clusterKey === k);
+      if (p) { openCard(p); const node = state.nodeById.get(p.id); if (node) flyToNode(node); }
+    }
+  }
+  else if (uiHook === "lightbox") {
+    const p = state.photos[0];
+    if (p) { openCard(p); $("#lightboxImg").src = p.full || p.src; $("#lightbox").classList.remove("hidden"); }
+  }
   else if (uiHook === "geo") {
     const g = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { l: Math.round(b.left), r: Math.round(b.right), t: Math.round(b.top), b: Math.round(b.bottom) }; };
     const hud = document.querySelector(".hud-bottom");

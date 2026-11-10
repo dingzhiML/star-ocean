@@ -318,9 +318,41 @@
 .theme-seg { margin-top: 2px; }
 .theme-seg button { font-size: 12px; }
 
+/* 图例聚焦态 */
+.lg-item.active { background: rgba(255, 246, 228, 0.14); }
+[data-theme="day"] .lg-item.active { background: rgba(150, 118, 76, 0.14); }
+
 /* 抽屉内所有直接子元素不允许横向溢出（双保险） */
 .drawer-acc > *:not(summary),
 .drawer-sec > * { max-width: 100%; min-width: 0; }
+
+/* ---------- 聚焦模式：详情卡移到左侧并加大 ---------- */
+@media (min-width: 900px) {
+  body.focus-mode .card {
+    left: 30px; right: auto;
+    width: 460px; padding: 20px;
+  }
+  body.focus-mode .card img { height: 300px; }
+  body.focus-mode .card h2 { font-size: 24px; letter-spacing: 2px; }
+  body.focus-mode .card-note { font-size: 14px; }
+  body.focus-mode .card .btn { font-size: 14px; }
+}
+
+/* ---------- 照片灯箱（点击详情卡大图放大） ---------- */
+.lightbox {
+  position: fixed; inset: 0; z-index: 96;
+  background: rgba(5, 3, 2, 0.9);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: center;
+  cursor: zoom-out;
+  animation: lightboxIn .2s ease;
+}
+.lightbox img {
+  max-width: 94vw; max-height: 94vh; max-height: 94dvh;
+  object-fit: contain; border-radius: 10px;
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.6);
+}
+@keyframes lightboxIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- 桌面小窗口 ---------- */
 @media (max-width: 900px) {

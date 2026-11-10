@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>我们的星海 ✨</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='0.9em' font-size='90'%3E%E2%9C%A8%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="styles.css?v=20261111">
-<link rel="stylesheet" href="styles-app.css?v=20261111">
-<link rel="stylesheet" href="styles-mobile.css?v=20261111">
+<link rel="stylesheet" href="styles.css?v=20261115">
+<link rel="stylesheet" href="styles-app.css?v=20261115">
+<link rel="stylesheet" href="styles-mobile.css?v=20261115">
 <script>
   /* 防闪烁：在样式渲染前就根据本地时间/记忆偏好预设白天或夜晚主题 */
   (function () {
@@ -26,6 +26,19 @@
 </script>
 </head>
 <body>
+
+  <!-- 家庭暗号门锁（解锁前照片数据与应用不加载） -->
+  <div id="gate" class="gate hidden">
+    <div class="gate-box">
+      <div class="gate-star">✦</div>
+      <h1>我们的星海</h1>
+      <p class="gate-sub">这是我们的私人星海 · 请输入家庭暗号</p>
+      <input id="gateInput" type="password" inputmode="numeric" autocomplete="off" placeholder="家庭暗号">
+      <button id="gateBtn" class="btn primary">解锁星海</button>
+      <label class="gate-remember"><input type="checkbox" id="gateRemember" checked> 记住这台设备</label>
+      <p id="gateError" class="gate-error hidden"></p>
+    </div>
+  </div>
 
   <!-- 3D 场景容器 -->
   <div id="scene"></div>
@@ -163,7 +176,7 @@
           <summary>关于</summary>
           <div class="about-body">
             <p><b>玩法：</b>单指拖动 / 鼠标拖拽旋转星海，双指 / 滚轮缩放，轻触照片看故事；底部时间线可以穿越年份；右上角菜单里能搜索、分组、找星系、换外观和放音乐。</p>
-            <p><b>隐私：</b>这是一个公开网页，任何拿到链接的人都能看到。若以后想换成私密访问，可以再升级方案。</p>
+            <p><b>隐私：</b>星海已加「家庭暗号门锁」，不知道暗号的访客无法进入浏览。需要更强的私密保护（如 Cloudflare 访问控制）可以再升级。改暗号：用记事本打开 <b>gate.js</b>，修改第 8 行引号里的内容即可。</p>
             <h4>🎵 背景音乐版权</h4>
             <ul class="credit-list">
               <li>《回忆渐近》 A Memory Away — Tanner Helland</li>
@@ -236,6 +249,11 @@
     <div class="loader-bar"><div id="loaderFill"></div></div>
   </div>
 
+  <!-- 照片灯箱（点击详情卡大图放大） -->
+  <div id="lightbox" class="lightbox hidden" title="点击任意位置关闭">
+    <img id="lightboxImg" alt="">
+  </div>
+
   <!-- 错误横幅 -->
   <div id="fatal" class="fatal hidden">⚠️ <span id="fatalMsg"></span></div>
 
@@ -264,7 +282,6 @@
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.2/dist/3d-force-graph.min.js" crossorigin="anonymous"></script>
-  <script src="data/sample-photos.js?v=20261111"></script>
-  <script src="app.js?v=20261111"></script>
+  <script src="gate.js?v=20261115"></script>
 </body>
 </html>
