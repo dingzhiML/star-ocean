@@ -162,7 +162,16 @@
   backdrop-filter: none; -webkit-backdrop-filter: none;
 }
 /* 图例自然撑开：不做内部滚动，整个抽屉统一滚动，下方模块随之下移 */
-.drawer .legend-list { max-height: none; overflow: visible; }
+/* 探索列表：在自身框内滚动，无论多少地点都不侵占下方模块 */
+.drawer .legend-list {
+  max-height: 34vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.drawer .legend-list::-webkit-scrollbar { width: 4px; }
+.drawer .legend-list::-webkit-scrollbar-thumb { background: rgba(255, 250, 240, 0.25); border-radius: 2px; }
 .drawer .panel-title { margin-bottom: 6px; }
 
 .drawer-btn {
