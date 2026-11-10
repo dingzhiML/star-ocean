@@ -948,27 +948,29 @@ function rebuild(keepCamera = true) {
 
 /* ---------------- 图例 ---------------- */
 function renderLegend(gd) {
-  $("#legendTitle").textContent = "星系 · " + { year: "按年份", place: "按地点", event: "按事件" }[state.mode];
+  const modeName = { year: "按年份", place: "按地点", event: "按事件" }[state.mode];
   const counts = {};
   for (const p of state.photos) counts[p.clusterKey] = (counts[p.clusterKey] || 0) + 1;
   const list = $("#legendList");
   list.innerHTML = "";
   // 「其他」永远排在最后，其余保持原有顺序
   const keys = [...gd.keys].sort((a, b) => (String(a).startsWith("其他") ? 1 : 0) - (String(b).startsWith("其他") ? 1 : 0));
+  // 标题行：聚焦时显示「退出聚焦」按钮（点图例永远聚焦，退出走专用按钮，避免误触）
+  const titleEl = $("#legendTitle");
+  titleEl.innerHTML = `星系 · ${modeName}` + (state.focusCluster ? ` <button id="exitFocus" class="mini-btn">退出聚焦</button>` : "");
+  if (state.focusCluster) {
+    const ex = document.getElementById("exitFocus");
+    if (ex) ex.addEventListener("click", () => { clearFocus(); toast("已退出聚焦"); });
+  }
   for (const k of keys) {
     const el = document.createElement("div");
     el.className = "lg-item" + (state.focusCluster === k ? " active" : "");
     el.innerHTML = `<i class="lg-dot" style="background:${colorForKey(k)};color:${colorForKey(k)}"></i><span class="lg-name">${esc(k)}</span><span class="lg-count">${counts[k]}</span>`;
     el.addEventListener("click", () => {
       closeDrawer();
-      if (state.focusCluster === k) {
-        clearFocus();
-        toast("已退出聚焦");
-        return;
-      }
-      setFocusCluster(k);
+      setFocusCluster(k);              // 点图例永远聚焦该星团（重复点也不退出）
       flyToCluster(gd.centers[k]);
-      toast(`已聚焦「${k}」 · 其他星团已变暗 · 再点一次图例可退出`);
+      toast(`已聚焦「${k}」 · 其他星团已变暗 · 标题旁可退出聚焦`);
     });
     list.appendChild(el);
   }
