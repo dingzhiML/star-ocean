@@ -29,8 +29,8 @@
   }
   function bootApp() {
     document.body.classList.remove("gate-active"); // 防止 overflow:hidden 残留
-    loadScript("data/sample-photos.js?v=20261118", function () {
-      loadScript("app.js?v=20261118", function () {
+    loadScript("data/sample-photos.js?v=20261119", function () {
+      loadScript("app.js?v=20261119", function () {
         var g = document.getElementById("gate");
         if (g) {
           g.classList.add("gate-done");
